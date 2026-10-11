@@ -1,0 +1,217 @@
+{
+  "name": "checkpoint1_Mario_Suarez",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "## ROL\nSos \"Asistente de Pañol\", el agente de consultas del Pañol de Repuestos de la planta industrial de Grupo DISAL Villa Mercedes. Atendés al personal de Mantenimiento y Producción.\n\n## ÁMBITO\nTu alcance se limita a:\n1. Consultar disponibilidad, ubicación y criticidad de repuestos registrados en la planilla de stock del pañol.\n2. Informar si un material está en stock, bajo mínimo o sin stock.\n3. Orientar sobre el siguiente paso (retiro en pañol o gestión de reposición con Compras).\n\nNO tenés permitido:\n- Modificar, reservar, prestar, descontar ni dar de baja stock.\n- Generar, aprobar ni prometer solicitudes de pedido (SOLPED), órdenes de compra, precios, proveedores ni plazos de entrega.\n- Inventar códigos, cantidades o ubicaciones que no devuelva la herramienta.\n- Responder consultas ajenas al pañol (RRHH, sueldos, programación de producción, temas personales).\n\n## OBJETIVO OPERATIVO\nQue cada consulta termine con una respuesta verificada contra la planilla de stock: código SAP, descripción, stock actual frente al mínimo, ubicación y acción sugerida, en no más de 6 líneas (o con el formato de listado de la regla 3b).\n\n## REGLAS DE USO DE HERRAMIENTAS\n1. Ante cualquier consulta sobre un repuesto, usá SIEMPRE la herramienta \"Consultar_Stock_Panol\" antes de responder. Nunca respondas de memoria.\n2. Si el usuario describe el repuesto de forma coloquial (por ejemplo, \"la junta clamp de 1 pulgada\" o \"la goma de la bomba de la dispersora\"), identificalo comparando sus palabras clave con las columnas Descripcion y Equipo_Asociado.\n3. Si buscan UN repuesto puntual y hay más de una coincidencia, mostrá como máximo 3 opciones (solo las que coincidan con TODAS las palabras clave relevantes de la consulta) en formato resumido \"Código | Descripción\" y pedí que confirme cuál necesita. No muestres stock hasta que confirme.\n3b. Si piden un LISTADO por equipo o familia (por ejemplo, \"¿qué repuestos hay para la Envasadora 2?\"), respondé con una línea por repuesto, máximo 5, con el formato \"Código | Descripción | actual/mínimo unidad | estado\", ordenando primero SIN STOCK y BAJO MÍNIMO. Si hay más de 5, indicá cuántos quedan sin mostrar y ofrecé filtrar.\n4. Si no hay coincidencias, decilo explícitamente y pedí el código SAP o una descripción alternativa. No inventes alternativas.\n5. Clasificá el estado así: Stock_Actual = 0 → \"SIN STOCK\"; Stock_Actual < Stock_Minimo → \"BAJO MÍNIMO\"; en otro caso → \"OK\".\n\n## PROTOCOLO DE ESCALAMIENTO\nDetené el ciclo y respondé exactamente \"Derivo tu consulta al Responsable de Pañol para revisión.\" (agregando en una línea el motivo) cuando:\n- El repuesto sea de Criticidad A y esté SIN STOCK (riesgo de parada de línea).\n- Pidan retirar, reservar, prestar o dar de baja materiales.\n- Pidan precios, proveedores, plazos de entrega o autorizaciones.\n- La herramienta devuelva error dos veces seguidas.\n\n## ESTILO Y FORMATO\n- Español profesional, claro y directo, con tono técnico.\n- Usá el masculino genérico gramatical. No uses lenguaje inclusivo (x, @, e, \"todos/as\", \"les\").\n- Formato de respuesta para un repuesto individual (cada dato en su propia línea):\n  Código SAP | Descripción\n  Stock: actual / mínimo [unidad] → estado\n  Ubicación: ...\n  Acción sugerida: ...",
+          "maxIterations": 6,
+          "returnIntermediateSteps": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        272,
+        0
+      ],
+      "id": "6930de15-5df3-4c06-9ab8-30549a800fa5",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        112,
+        208
+      ],
+      "id": "3ae83518-95c6-4826-b498-d7b695689f0b",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "9r71mopqe1uXANwn",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        16,
+        0
+      ],
+      "id": "fe240a9e-7c03-4e2a-8318-16305dd64d67",
+      "name": "When chat message received",
+      "webhookId": "4d2baf56-058e-41cf-a09d-b8b6db3a8d31"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Consulta de solo lectura del maestro de stock del Pañol de Repuestos de la planta. Devuelve la lista completa de repuestos con estas columnas: Codigo_SAP, Descripcion, Equipo_Asociado, Ubicacion, Stock_Actual, Stock_Minimo, Unidad, Criticidad (A = crítico, puede detener una línea; B = importante; C = consumible) y Ultimo_Movimiento.\n\nUSALA cuando el usuario:\n- Pregunte si hay stock, cuántas unidades quedan o dónde está ubicado un repuesto.\n- Mencione un código SAP, una descripción técnica (rodamiento, sello mecánico, correa, motor, contactor, filtro, etc.) o el equipo/máquina donde se usa (Dispersora, Envasadora, Tanque, Etiquetadora).\n- Necesite saber si un material está bajo mínimo, sin stock o cuál es su criticidad.\n- Describa el repuesto de forma coloquial o incompleta: en ese caso usá esta herramienta para identificar las coincidencias por Descripcion y Equipo_Asociado.\n\nNO la uses para:\n- Saludos, preguntas generales o consultas ajenas al pañol.\n- Pedidos de retiro, reserva, baja, precios o plazos: esos casos se escalan al Responsable de Pañol sin consultar la planilla.\n\nEsta herramienta no modifica datos. Si la respuesta llega vacía o con error, informalo al usuario; no reintentes más de una vez.",
+        "documentId": {
+          "__rl": true,
+          "value": "1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0",
+          "mode": "list",
+          "cachedResultName": "Stock_Panol_demo",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 805008057,
+          "mode": "list",
+          "cachedResultName": "Stock",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0/edit#gid=805008057"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        512,
+        176
+      ],
+      "id": "205e7e69-62a6-40a6-ac9a-5111e6e1fd08",
+      "name": "Consultar_Stock_Panol",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "w1TWEnaxv7fUP1az",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "=marsua1803@gmail.com",
+        "subject": "=[Pañol IA] Log de ejecución – {{ $now.format('dd/MM/yyyy HH:mm') }}",
+        "message": "=<h3>Consulta recibida</h3>\n<p>{{ $('When chat message received').item.json.chatInput }}</p>\n\n<h3>Respuesta del agente</h3>\n<p>{{ ($json.output || '').replace(/\\n/g, '<br>') }}</p>\n\n<h3>Auditoría del razonamiento (Execution Log)</h3>\n<p>Llamadas a herramientas: <b>{{ ($json.intermediateSteps || []).length }}</b></p>\n<pre>{{ JSON.stringify(($json.intermediateSteps || []).map(s => ({ herramienta: s.action.tool, input: s.action.toolInput, razonamiento: s.action.log, observacion: String(s.observation).slice(0, 400) })), null, 2) }}</pre>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "1ca9a2b1-7307-4d90-917d-c7ee9130979b",
+      "name": "Send a message",
+      "webhookId": "7831c22f-0b44-4a43-89ad-6321f68d153f",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Pl4zlGrwzUXBceY0",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5b28cae7-0ad9-4169-867c-ab79c6965de5",
+              "name": "output",
+              "value": "={{ $('AI Agent').item.json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        832,
+        0
+      ],
+      "id": "0047ea19-2e28-4628-a75d-d4152e71fac9",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar_Stock_Panol": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1,
+    "availableInMCP": false
+  },
+  "versionId": "f5273b9e-f841-4f0c-b9dd-f7d06d66cd93",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c868f64723573c0285061e4b1f6484d9ffdcd2ec3df87ce9e58e23b2c4825fc"
+  },
+  "nodeGroups": [],
+  "id": "PbRZPvGMXngxJGe3",
+  "tags": []
+}
