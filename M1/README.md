@@ -1,7 +1,7 @@
 # Asistente de Pañol — Proyecto Integrador · Checkpoint M1
 
 **Curso IA Avanzada (n8n) · Módulo 1: Agentes Autónomos vs. Automatización Lineal**
-Autor: Mario Suarez · Archivo entregable: [`checkpoint1_Mario_Suarez.json`](./checkpoint1_mario_suarez.json)
+Autor: Mario Suarez · Archivo entregable: [`checkpoint1_Mario_Suarez.json`](./checkpoint1_Mario_Suarez.json)
 
 ---
 
@@ -71,7 +71,7 @@ Cada prueba se ejecutó en una sesión de chat nueva. Evidencia: log de ejecuci�
 
 ## 6. Cómo importar
 
-1. En n8n: **Workflows → Import from File** → `checkpoint1_mario_suarez.json`.
+1. En n8n: **Workflows → Import from File** → `checkpoint1_Mario_Suarez.json`.
 2. Asignar credenciales propias: Groq API, Google Sheets OAuth2, Gmail OAuth2 (no se incluyen en el export).
 3. En `Consultar_Stock_Panol`, seleccionar una planilla con la pestaña `Stock` y las columnas: `Codigo_SAP, Descripcion, Equipo_Asociado, Ubicacion, Stock_Actual, Stock_Minimo, Unidad, Criticidad, Ultimo_Movimiento`.
 4. En Gmail, configurar el destinatario del log.
