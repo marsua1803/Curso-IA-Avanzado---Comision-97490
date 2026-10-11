@@ -1,0 +1,1240 @@
+{
+  "name": "Manager Asistente Pañol – M2",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "3bbf776e-6a72-4cf7-98c5-30f36f23bf12",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -848,
+        448
+      ],
+      "webhookId": "7536270b-fb83-4ab1-b47d-338486d20cab"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "## ROL\nSos el Manager del Asistente de Pañol de Repuestos de la planta de Grupo DISAL Villa Mercedes.\n\nTu función NO es resolver las tareas operativas. Tu responsabilidad es analizar la solicitud del usuario y decidir qué Worker especialista debe resolverla.\n\n## WORKERS DISPONIBLES\n\n### 1. stock_lookup\nEspecialista en el maestro de stock del pañol (solo lectura).\nUsalo cuando el usuario consulte por:\n- Disponibilidad o cantidad de un repuesto\n- Ubicación de un repuesto en el pañol\n- Criticidad o estado (OK, bajo mínimo, sin stock)\n- Búsqueda por código SAP, descripción o equipo\n- Listado de repuestos de una máquina o equipo\n\n### 2. notificacion_responsable\nEspecialista en derivar casos al Responsable de Pañol por correo.\nUsalo cuando el usuario pida:\n- Retirar, reservar, prestar, devolver o dar de baja materiales\n- Precios, costos, proveedores, plazos de entrega, compras, SOLPED u órdenes de compra\n- Autorizaciones de cualquier tipo\n\n## INTENCIONES PERMITIDAS (taxonomía cerrada)\n\nPara stock_lookup:\n- stock_disponibilidad\n- stock_ubicacion\n- stock_listado_equipo\n\nPara notificacion_responsable:\n- gestion_material\n- consulta_comercial\n\nSi la solicitud no puede ser atendida por ninguno de los Workers (saludos, agradecimientos, RRHH, sueldos, producción, temas personales):\n- worker = unsupported\n- intent = unsupported\n\n## Formato de Salida JSON\nEste es un ejemplo de JSON\n{\n  \"worker\": \"stock_lookup\",\n  \"intent\": \"stock_disponibilidad\",\n  \"codigo_sap\": \"\",\n  \"material_query\": \"goma muelle N°53 bomba\",\n  \"request\": \"Informar stock actual vs. mínimo, ubicación y estado de la goma muelle N°53 de la bomba\",\n  \"original_input\": \"¿Tenemos goma muelle N°53 para la bomba?\",\n  \"confidence\": 0.95,\n  \"motivo\": \"Consulta de disponibilidad de un repuesto puntual\"\n}\n\n## REGLAS\n\n1. Tu trabajo es exclusivamente interpretar y delegar.\n2. No realices vos mismo consultas de stock, precios ni gestiones.\n3. Seleccioná UN Worker según la intención principal del usuario. Si el mensaje mezcla una consulta de stock con un pedido de retiro, reserva o una consulta comercial, priorizá notificacion_responsable.\n4. Extraé codigo_sap solamente si aparece explícitamente en el mensaje (6 dígitos). Si no existe, devolvé una cadena vacía. Nunca inventes códigos.\n5. Para stock_lookup, generá material_query con los términos necesarios para buscar el repuesto (descripción y/o equipo). Para los demás Workers, devolvé una cadena vacía.\n6. No inventes repuestos, cantidades, ubicaciones, precios ni plazos.\n7. request debe ser una instrucción breve, concreta y útil para el Worker.\n8. original_input debe conservar exactamente el mensaje original del usuario.\n9. confidence mide qué tan seguro estás de haber elegido el worker y la intención correctos (entre 0 y 1). NO mide si la consulta se puede resolver. Un saludo, un agradecimiento o un tema claramente ajeno al pañol es unsupported con confidence alta (0.9 o más). Usá un valor menor a 0.5 solo cuando no se entienda qué pide el usuario o cuando el mensaje pueda corresponder a más de un worker.\n10. motivo: una frase de hasta 15 palabras que justifique la decisión.\n11. Tu salida debe respetar estrictamente la estructura solicitada por el Output Parser.",
+          "maxIterations": 3
+        }
+      },
+      "id": "8d26e804-d8eb-49e9-8ae6-194ae7d53974",
+      "name": "Manager AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -544,
+        448
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "9cc15a16-dff1-4739-90c2-a890d33515a1",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        672
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "9r71mopqe1uXANwn",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"worker\": \"stock_lookup\",\n  \"intent\": \"stock_disponibilidad\",\n  \"codigo_sap\": \"\",\n  \"material_query\": \"goma muelle N°53 bomba\",\n  \"request\": \"Informar stock actual vs. mínimo, ubicación y estado de la goma muelle N°53 de la bomba\",\n  \"original_input\": \"¿Tenemos goma muelle N°53 para la bomba?\",\n  \"confidence\": 0.95,\n  \"motivo\": \"Consulta de disponibilidad de un repuesto puntual\"\n}"
+      },
+      "id": "9c937031-92e3-4e08-a487-d1e397e997ee",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -384,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "ed514191-9f0c-4a96-983d-7c57310117db",
+                    "leftValue": "={{ $json.output.worker }}",
+                    "rightValue": "stock_lookup",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "92fe48ca-9db0-47fe-904b-c8965f516228",
+                    "leftValue": "={{ Number($json.output.confidence) }}",
+                    "rightValue": 0.5,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "stock_lookup"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "a94b22f1-9b58-4bfe-91f1-6c67aebe1615",
+                    "leftValue": "={{ $json.output.worker }}",
+                    "rightValue": "notificacion_responsable",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "32dbef40-3d57-4f41-a0a9-5f4053622fab",
+                    "leftValue": "={{ Number($json.output.confidence) }}",
+                    "rightValue": 0.5,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "notificacion_responsable"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fa4f4c72-fa54-4e9b-a936-1665db08455b",
+                    "leftValue": "={{ $json.output.worker }}",
+                    "rightValue": "unsupported",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "id": "8d9d5341-dd8b-4683-88a6-9544e4c95bdd",
+                    "leftValue": "={{ Number($json.output.confidence) }}",
+                    "rightValue": 0.5,
+                    "operator": {
+                      "type": "number",
+                      "operation": "gte"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "unsupported"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "escape_humano"
+        }
+      },
+      "id": "52490cb1-ad86-4d9c-bdba-2080fdf13290",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -224,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dc1215b1-4e95-4ebf-878a-af79fdfdcd0b",
+              "name": "intent",
+              "value": "={{ $json.output.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "aafc09c3-d953-4849-9cd9-839e41400953",
+              "name": "codigo_sap",
+              "value": "={{ $json.output.codigo_sap }}",
+              "type": "string"
+            },
+            {
+              "id": "dd3f0433-dfb4-4abd-928d-bc028f28bfd0",
+              "name": "material_query",
+              "value": "={{ $json.output.material_query }}",
+              "type": "string"
+            },
+            {
+              "id": "caa426ff-ce1c-44e2-b992-0cb956e5b8f6",
+              "name": "request",
+              "value": "={{ $json.output.request }}",
+              "type": "string"
+            },
+            {
+              "id": "a42b2562-6242-4bdb-afef-4f289d5e302d",
+              "name": "original_input",
+              "value": "={{ $('When chat message received').first().json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "f21376cd-4f3e-469e-8729-e9a983a44ca9",
+              "name": "confidence",
+              "value": "={{ Number($json.output.confidence) }}",
+              "type": "number"
+            },
+            {
+              "id": "0754bca9-dea0-46a9-88e1-52f933379904",
+              "name": "session_id",
+              "value": "={{ $('When chat message received').first().json.sessionId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8bc1631d-86f7-468b-bb05-e6708b6744c4",
+      "name": "Handoff Stock",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "08a60d0e-e59a-40fe-89c3-aec3318dfd77",
+              "name": "intent",
+              "value": "={{ $json.output.intent }}",
+              "type": "string"
+            },
+            {
+              "id": "f72fbc3b-5cd4-45fb-b2f1-fb25d71a8f9e",
+              "name": "request",
+              "value": "={{ $json.output.request }}",
+              "type": "string"
+            },
+            {
+              "id": "ff62ee1e-9f04-465f-8c2f-27c4b0021dc2",
+              "name": "motivo",
+              "value": "={{ $json.output.motivo }}",
+              "type": "string"
+            },
+            {
+              "id": "605c608e-32e6-42eb-b897-de8c168c22f8",
+              "name": "original_input",
+              "value": "={{ $('When chat message received').first().json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "65d9166a-c4f5-4185-af7c-acdacdbcd941",
+              "name": "confidence",
+              "value": "={{ Number($json.output.confidence) }}",
+              "type": "number"
+            },
+            {
+              "id": "e9eef5fd-73db-4276-b994-8bad36fb131e",
+              "name": "session_id",
+              "value": "={{ $('When chat message received').first().json.sessionId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "acb217b4-8256-4dde-b281-367c5633a291",
+      "name": "Handoff Notificacion",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "84ff4330-6215-4ba2-8dea-3bf5e4602040",
+              "name": "intent",
+              "value": "revision_humana",
+              "type": "string"
+            },
+            {
+              "id": "a4d4f99f-2b8f-4c10-ad2b-bc4e9afba622",
+              "name": "request",
+              "value": "Revisar una consulta que el asistente no pudo resolver de forma automática y contactar al usuario",
+              "type": "string"
+            },
+            {
+              "id": "51eb1735-5c8d-4d2e-85dc-26807101040d",
+              "name": "motivo",
+              "value": "={{ $json.error ? 'Falla técnica: ' + ($json.error.message ?? $json.error) : ($json.status ? 'Worker ' + $json.worker + ' devolvió ' + $json.status + ($json.error_message ? ': ' + $json.error_message : '') : 'Clasificación dudosa: ' + ($json.output?.worker ?? 'sin worker') + ' / ' + ($json.output?.intent ?? 'sin intención') + ' (confianza ' + ($json.output?.confidence ?? 0) + ')') }}",
+              "type": "string"
+            },
+            {
+              "id": "c3f27419-eff8-41d6-8a70-924c9e15e057",
+              "name": "original_input",
+              "value": "={{ $('When chat message received').first().json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "059d8c14-b33d-47eb-be26-ccb41838b02f",
+              "name": "confidence",
+              "value": "={{ Number($json.output?.confidence ?? $json.params?.confidence ?? 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "bbf312fa-22cc-4963-9734-6b6be2affd0e",
+              "name": "session_id",
+              "value": "={{ $('When chat message received').first().json.sessionId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ee805d9b-f461-465f-b005-e64572284498",
+      "name": "Handoff Escape Humano",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        592,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "91b6f29c-37c9-4587-871c-5165ff1628e4",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "88091f15-082f-4470-b4be-232bfdb56003",
+              "name": "worker",
+              "value": "unsupported",
+              "type": "string"
+            },
+            {
+              "id": "7ba3586c-2be3-478c-b79a-1ee979fae2ce",
+              "name": "params",
+              "value": "={{ { intent: $json.output.intent, original_input: $('When chat message received').first().json.chatInput, confidence: Number($json.output.confidence) } }}",
+              "type": "object"
+            },
+            {
+              "id": "871cfdaf-ef72-42e6-934b-eb8deb6943ad",
+              "name": "data.respuesta",
+              "value": "Soy el Asistente de Pañol: puedo informarte stock, ubicación y criticidad de repuestos, y derivar al Responsable de Pañol pedidos de retiro, reservas o consultas comerciales. ¿Qué repuesto necesitás?",
+              "type": "string"
+            },
+            {
+              "id": "dd8c2bd4-a7a6-4fe5-8ddb-5350d31e428b",
+              "name": "error_message",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9fb2f7d9-a8e2-4fc2-8e12-cd8f43182d3b",
+      "name": "Respuesta Fuera de Alcance",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        48,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "UGsHUwE5jml8J79m",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/UGsHUwE5jml8J79m",
+          "cachedResultName": "Worker Stock Lookup – M2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "confidence": "={{ $json.confidence }}",
+            "intent": "={{ $json.intent }}",
+            "codigo_sap": "={{ $json.codigo_sap }}",
+            "material_query": "={{ $json.material_query }}",
+            "request": "={{ $json.request }}",
+            "original_input": "={{ $json.original_input }}",
+            "session_id": "={{ $json.session_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "codigo_sap",
+              "displayName": "codigo_sap",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "material_query",
+              "displayName": "material_query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "request",
+              "displayName": "request",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "original_input",
+              "displayName": "original_input",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "ebaf8d0b-cc8c-4452-907e-799089611685",
+      "name": "Ejecutar Worker Stock",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        192
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "4IKixgGHqIwm2YvH",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4IKixgGHqIwm2YvH",
+          "cachedResultName": "Worker Notificacion Responsable – M2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "confidence": "={{ $json.confidence }}",
+            "intent": "={{ $json.intent }}",
+            "request": "={{ $json.request }}",
+            "motivo": "={{ $json.motivo }}",
+            "original_input": "={{ $json.original_input }}",
+            "session_id": "={{ $json.session_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "request",
+              "displayName": "request",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "original_input",
+              "displayName": "original_input",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": true,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "7b20cd31-6a9e-41a4-bc2a-a0de1fca10db",
+      "name": "Ejecutar Worker Notificacion",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        848,
+        480
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1d52703-5350-4d33-a04c-cf57cb56a27c",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "^(success|not_found)$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b74f9307-0480-4f61-a0df-d63d78d7ff5d",
+      "name": "Stock OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        528,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "28ef31cc-f7d2-4b59-a76a-159cb50c1a9e",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "47bbeddf-75dc-49e9-ba44-0da9196e6c34",
+              "name": "worker",
+              "value": "notificacion_responsable",
+              "type": "string"
+            },
+            {
+              "id": "5ab0f7fe-fd0d-4a00-9a54-664b7f5158dd",
+              "name": "params",
+              "value": "={{ { intent: 'revision_humana', original_input: $('When chat message received').first().json.chatInput, confidence: 0 } }}",
+              "type": "object"
+            },
+            {
+              "id": "e37ef8d2-18f3-42bf-982f-8454d9099c54",
+              "name": "data.respuesta",
+              "value": "El asistente no está disponible en este momento. Contactá directamente al Responsable de Pañol.",
+              "type": "string"
+            },
+            {
+              "id": "a2b296f7-ea56-441d-af12-34780873298b",
+              "name": "error_message",
+              "value": "={{ $json.error?.message ?? $json.error ?? 'Falla del Worker de notificación' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "904c3220-31f0-4725-8451-5c0c4e4c28c4",
+      "name": "Contingencia Manager",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1104,
+        688
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f5d83444-af74-4b56-8728-668afbc2ddea",
+              "name": "Fecha",
+              "value": "={{ $now.format('yyyy-MM-dd HH:mm:ss') }}",
+              "type": "string"
+            },
+            {
+              "id": "49e31206-cc39-48da-8426-c839988ebd21",
+              "name": "Session_ID",
+              "value": "={{ $('When chat message received').first().json.sessionId }}",
+              "type": "string"
+            },
+            {
+              "id": "15f3b978-569e-4d2d-995c-5d4c943ec0ef",
+              "name": "Consulta",
+              "value": "={{ $('When chat message received').first().json.chatInput }}",
+              "type": "string"
+            },
+            {
+              "id": "98c3bccb-21d7-44c1-800f-967a8d322848",
+              "name": "Intent",
+              "value": "={{ $json.params?.intent ?? 'N/D' }}",
+              "type": "string"
+            },
+            {
+              "id": "97ae9936-5159-4a07-afbb-e915ad82cd59",
+              "name": "Confianza",
+              "value": "={{ Number($json.params?.confidence ?? 0) }}",
+              "type": "number"
+            },
+            {
+              "id": "20bb87fa-4fda-489a-8077-81f1428fd742",
+              "name": "Requiere_Revision",
+              "value": "={{ Number($json.params?.confidence ?? 0) < 0.85 || !['success','not_found'].includes($json.status) ? 'SI' : 'NO' }}",
+              "type": "string"
+            },
+            {
+              "id": "6c840102-348d-4f65-8ce6-ed91a66aee26",
+              "name": "Worker",
+              "value": "={{ $json.worker }}",
+              "type": "string"
+            },
+            {
+              "id": "af52f960-5207-422e-9feb-22dadd741821",
+              "name": "Parametros_Enviados",
+              "value": "={{ JSON.stringify($json.params) }}",
+              "type": "string"
+            },
+            {
+              "id": "f129d52d-5937-4322-aa46-8bd30036cac2",
+              "name": "Status",
+              "value": "={{ $json.status }}",
+              "type": "string"
+            },
+            {
+              "id": "46c42638-cf85-43e2-abb7-e75531fd8c3b",
+              "name": "Respuesta",
+              "value": "={{ $json.data?.respuesta ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "db8aa5f5-9e5a-4d93-8606-43e2c9609748",
+              "name": "Error",
+              "value": "={{ $json.error_message ?? '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4a39ca7f-edf7-4447-b69d-82a2126a1940",
+      "name": "Consolidar Log",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0",
+          "mode": "list",
+          "cachedResultName": "Stock_Panol_demo",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Log_Orquestacion",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Session_ID",
+              "displayName": "Session_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Consulta",
+              "displayName": "Consulta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Intent",
+              "displayName": "Intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Confianza",
+              "displayName": "Confianza",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Requiere_Revision",
+              "displayName": "Requiere_Revision",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Worker",
+              "displayName": "Worker",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Parametros_Enviados",
+              "displayName": "Parametros_Enviados",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Respuesta",
+              "displayName": "Respuesta",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Error",
+              "displayName": "Error",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "5a3ab224-bdf4-4f94-8487-e42889d7acaf",
+      "name": "Append row in sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1584,
+        432
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "w1TWEnaxv7fUP1az",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6a1a2f96-271a-4056-a155-f67afa591a1c",
+              "name": "output",
+              "value": "={{ ($('Consolidar Log').first().json.Respuesta || '').replace(/\\n/g, '  \\n') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "52f80b6f-b5ca-4e33-8366-9c93079e5fca",
+      "name": "Respuesta al Chat",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1824,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Prompt del Manager:\n\nSos el Manager del Asistente de Pañol.\nDefinir: intención (taxonomía cerrada)\ndecidir: worker a llamar (sub-workflow)\nextraer: código SAP / material\ndefinir: formato JSON de salida (output parser) + confidence",
+        "height": 600,
+        "width": 400,
+        "color": 2
+      },
+      "id": "cffda4de-3e8d-4db0-a12a-c556901b23fa",
+      "name": "Nota 29cd",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Enrutamiento\nworker + confidence ≥ 0.5\nresto → escape_humano",
+        "height": 600,
+        "width": 200,
+        "color": 5
+      },
+      "id": "6c8ab49e-f68e-431e-84c8-89ef409d2eb9",
+      "name": "Nota f3d2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Handoff + delegación\nSet = JSON mínimo viable → Execute Workflow (Wait for completion ON)\nStock: retry ×2 · fallas / out_of_scope → escape humano",
+        "height": 860,
+        "width": 1040,
+        "color": 4
+      },
+      "id": "e9fd09e2-4006-4e5a-83ec-0fa0b9b6fef7",
+      "name": "Nota 04e3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Trazabilidad\nLog en Google Sheets (Log_Orquestacion): worker, parámetros, status, respuesta",
+        "height": 340,
+        "width": 700,
+        "color": 6
+      },
+      "id": "bdfdccfc-7209-445d-b510-c17e6c68bb03",
+      "name": "Nota a37c",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        272
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Manager AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Manager AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Manager AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manager AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handoff Escape Humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Handoff Stock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handoff Notificacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respuesta Fuera de Alcance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handoff Escape Humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handoff Stock": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Worker Stock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Worker Stock": {
+      "main": [
+        [
+          {
+            "node": "Stock OK?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handoff Escape Humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stock OK?": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handoff Escape Humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handoff Notificacion": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Worker Notificacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handoff Escape Humano": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar Worker Notificacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Worker Notificacion": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contingencia Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta Fuera de Alcance": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contingencia Manager": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Log": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Respuesta al Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 300
+  },
+  "versionId": "92771fdb-24a1-4d30-b5d4-1dad466f6aac",
+  "meta": {
+    "instanceId": "8c868f64723573c0285061e4b1f6484d9ffdcd2ec3df87ce9e58e23b2c4825fc"
+  },
+  "nodeGroups": [],
+  "id": "jgKLy0L5YX6H7vTU",
+  "tags": []
+}

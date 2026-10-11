@@ -1,0 +1,283 @@
+{
+  "name": "Worker Notificacion Responsable – M2",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"intent\": \"gestion_material\",\n  \"request\": \"Avisar al Responsable de Pañol un pedido de retiro para su aprobación\",\n  \"motivo\": \"Pedido de retiro de material: requiere decisión humana\",\n  \"original_input\": \"Retirame 2 curvas de 90° de 25,4 mm\",\n  \"confidence\": 0.93,\n  \"session_id\": \"abc123\"\n}"
+      },
+      "id": "4e55b4bf-d3c2-44fa-80c0-32db1b851931",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        48,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Sos el redactor de notificaciones internas del Pañol de Repuestos de Grupo DISAL Villa Mercedes.\nTu única tarea es redactar el cuerpo de un correo breve para el Responsable de Pañol con un caso que el asistente automático no puede resolver.\n\nDATOS DEL CASO\n- Solicitud del Manager: {{ $json.request }}\n- Mensaje original del usuario: {{ $json.original_input }}\n- Intención: {{ $json.intent }}\n- Motivo de la derivación: {{ $json.motivo }}\n- Confianza de la clasificación: {{ $json.confidence }}\n\nREGLAS\n- Máximo 8 líneas, español profesional y directo, sin saludo efusivo ni firma.\n- Estructura: 1) qué se pide, 2) por qué se deriva, 3) acción sugerida para el Responsable (aprobar retiro/reserva, cotizar con Compras o revisar la consulta).\n- No inventes códigos, cantidades, precios ni plazos que no estén en el mensaje original.\n- Si la intención es revision_humana, aclará que el asistente no pudo clasificar o resolver la consulta con seguridad.\n- Devolvé solo el cuerpo del correo en texto plano.",
+        "batching": {}
+      },
+      "id": "87ca08ee-408b-4755-8ea5-aec551cbb155",
+      "name": "Redactar Notificacion",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        320,
+        240
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "1f44fd4b-29de-4197-9f55-da6943fab945",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        320,
+        464
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "9r71mopqe1uXANwn",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "=marsua1803@gmail.com",
+        "subject": "=[Pañol IA] Derivación {{ $('When Executed by Another Workflow').first().json.intent }} – {{ $now.format('dd/MM/yyyy HH:mm') }}",
+        "message": "={{ ($json.text || '').replace(/\\n/g, '<br>') }}<hr><small>Mensaje original: {{ $('When Executed by Another Workflow').first().json.original_input }}<br>Sesión: {{ $('When Executed by Another Workflow').first().json.session_id }}</small>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ca06adbf-e911-47af-adc1-26beffd1bc83",
+      "name": "Notificar Responsable",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        608,
+        144
+      ],
+      "webhookId": "bbcdbee4-2ec0-45c8-973a-9a9196d2a9e6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Pl4zlGrwzUXBceY0",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "849958b9-06ab-4a05-bf12-99d4fead9a23",
+              "name": "status",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "e706b4ff-5a5e-4205-a569-a3fa540c89c1",
+              "name": "worker",
+              "value": "notificacion_responsable",
+              "type": "string"
+            },
+            {
+              "id": "66e40c6a-1e86-4146-b583-0d3c6d600fb0",
+              "name": "params",
+              "value": "={{ $('When Executed by Another Workflow').first().json }}",
+              "type": "object"
+            },
+            {
+              "id": "978ac87f-c6ab-4562-ab77-359c3faad440",
+              "name": "data.respuesta",
+              "value": "={{ $('When Executed by Another Workflow').first().json.intent === 'revision_humana' ? 'No pude resolver tu consulta de forma automática. La derivé al Responsable de Pañol, que te va a contactar.' : 'Derivo tu consulta al Responsable de Pañol para revisión.\\nMotivo: ' + $('When Executed by Another Workflow').first().json.motivo + '\\nYa le envié el aviso por correo.' }}",
+              "type": "string"
+            },
+            {
+              "id": "31fea458-1e85-4f88-95fc-62c49d899c9b",
+              "name": "data.mensaje_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "026c0d6d-f9fe-4863-9339-73c5a1b7eb6b",
+              "name": "error_message",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "587a81de-e9ab-4dbb-bd45-13ca8a9ecd46",
+      "name": "Contrato de Salida OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1e1c870-313d-4d24-8d27-f57df02318cb",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "f63744e0-a1b1-47fc-a697-2116d204b7bd",
+              "name": "worker",
+              "value": "notificacion_responsable",
+              "type": "string"
+            },
+            {
+              "id": "da287c15-3a15-47cb-b0c3-fedee3cd42d1",
+              "name": "params",
+              "value": "={{ $('When Executed by Another Workflow').first().json }}",
+              "type": "object"
+            },
+            {
+              "id": "039ac3ba-01d0-4348-9c67-31f52efe0146",
+              "name": "data.respuesta",
+              "value": "No pude notificar al Responsable de Pañol. Por favor, contactalo directamente.",
+              "type": "string"
+            },
+            {
+              "id": "3262f508-7303-4528-8fc7-37c427585149",
+              "name": "data.mensaje_id",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "b72b8bd1-1517-4e8c-bb7b-d610972b2295",
+              "name": "error_message",
+              "value": "={{ $json.error?.message ?? $json.error ?? 'Error no identificado en el Worker de notificación' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c41da568-16f7-46a5-9ed8-3825b1d2aa9c",
+      "name": "Contrato de Salida Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Worker 2 · Notificación al Responsable\nEntrada: contrato JSON (jsonExample)\nRedacta (LLM) y envía el aviso por Gmail · reutilizado para escalamientos y escape humano\nSalida: `{status, worker, params, data, error_message}`\nSettings: Timeout 60 s",
+        "height": 620,
+        "width": 1060,
+        "color": 7
+      },
+      "id": "40d080f2-7b33-48c4-8055-414df9ace44e",
+      "name": "Nota c50e",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Redactar Notificacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redactar Notificacion": {
+      "main": [
+        [
+          {
+            "node": "Notificar Responsable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contrato de Salida Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notificar Responsable": {
+      "main": [
+        [
+          {
+            "node": "Contrato de Salida OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contrato de Salida Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Redactar Notificacion",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 60
+  },
+  "versionId": "1b2c5898-6b64-4782-a966-7c9629744f04",
+  "meta": {
+    "instanceId": "8c868f64723573c0285061e4b1f6484d9ffdcd2ec3df87ce9e58e23b2c4825fc"
+  },
+  "nodeGroups": [],
+  "id": "4IKixgGHqIwm2YvH",
+  "tags": []
+}

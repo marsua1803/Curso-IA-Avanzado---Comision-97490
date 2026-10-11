@@ -1,0 +1,338 @@
+{
+  "name": "Worker Stock Lookup – M2",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"intent\": \"stock_disponibilidad\",\n  \"codigo_sap\": \"\",\n  \"material_query\": \"goma muelle N°53 bomba\",\n  \"request\": \"Informar stock actual vs. mínimo, ubicación y estado de la goma muelle N°53 de la bomba\",\n  \"original_input\": \"¿Tenemos goma muelle N°53 para la bomba?\",\n  \"confidence\": 0.95,\n  \"session_id\": \"abc123\"\n}"
+      },
+      "id": "98121e82-0916-4f93-9d3b-19b981de4272",
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        48,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Solicitud del Manager: {{ $json.request }}\n\nIntención: {{ $json.intent }}\nCódigo SAP (si fue informado): {{ $json.codigo_sap }}\nMaterial a buscar: {{ $json.material_query }}\n\nMensaje original del usuario:\n{{ $json.original_input }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "## ROL\nSos \"Stock Lookup\", el Worker especialista en stock del Asistente de Pañol: el agente de consultas del Pañol de Repuestos de la planta industrial de Grupo DISAL Villa Mercedes. Recibís solicitudes ya clasificadas por el Manager (orquestador); no conversás con el usuario de forma directa.\n\n## ÁMBITO\nTu alcance se limita a:\n1. Consultar disponibilidad, ubicación y criticidad de repuestos registrados en la planilla de stock del pañol.\n2. Informar si un material está en stock, bajo mínimo o sin stock.\n3. Orientar sobre el siguiente paso (retiro en pañol o gestión de reposición con Compras).\n\nNO tenés permitido:\n- Modificar, reservar, prestar, descontar ni dar de baja stock.\n- Generar, aprobar ni prometer solicitudes de pedido (SOLPED), órdenes de compra, precios, proveedores ni plazos de entrega.\n- Inventar códigos, cantidades o ubicaciones que no devuelva la herramienta.\n- Responder consultas ajenas al pañol (RRHH, sueldos, programación de producción, temas personales).\n\n## OBJETIVO OPERATIVO\nQue cada consulta termine con una respuesta verificada contra la planilla de stock: código SAP, descripción, stock actual frente al mínimo, ubicación y acción sugerida, en no más de 6 líneas (o con el formato de listado de la regla 3b).\n\n## REGLAS DE USO DE HERRAMIENTAS\n1. Ante cualquier consulta sobre un repuesto, usá SIEMPRE la herramienta \"Consultar_Stock_Panol\" antes de responder. Nunca respondas de memoria.\n2. Si el usuario describe el repuesto de forma coloquial (por ejemplo, \"la junta clamp de 1 pulgada\" o \"la goma de la bomba de la dispersora\"), identificalo comparando sus palabras clave con las columnas Descripcion y Equipo_Asociado.\n3. Si buscan UN repuesto puntual y hay más de una coincidencia, mostrá como máximo 3 opciones (solo las que coincidan con TODAS las palabras clave relevantes de la consulta) en formato resumido \"Código | Descripción\" y pedí que confirme cuál necesita. No muestres stock hasta que confirme.\n3b. Si piden un LISTADO por equipo o familia (por ejemplo, \"¿qué repuestos hay para la Envasadora 2?\"), respondé con una línea por repuesto, máximo 5, con el formato \"Código | Descripción | actual/mínimo unidad | estado\", ordenando primero SIN STOCK y BAJO MÍNIMO. Si hay más de 5, indicá cuántos quedan sin mostrar y ofrecé filtrar.\n4. Si no hay coincidencias, decilo explícitamente y pedí el código SAP o una descripción alternativa. No inventes alternativas.\n5. Clasificá el estado así: Stock_Actual = 0 → \"SIN STOCK\"; Stock_Actual < Stock_Minimo → \"BAJO MÍNIMO\"; en otro caso → \"OK\".\n\n## PROTOCOLO DE ESCALAMIENTO (Worker especialista)\n- Si el repuesto es de Criticidad A y está SIN STOCK, informá los datos, marcá alerta_criticidad_A = true y terminá la respuesta con: \"Derivo al Responsable de Pañol para revisión.\"\n- Si la solicitud pide retirar, reservar, prestar, dar de baja, precios, proveedores, plazos o autorizaciones, NO la resuelvas ni consultes la planilla: devolvé status = out_of_scope (el Manager la re-enruta).\n- Si la herramienta falla dos veces seguidas, devolvé status = error.\n\n## ESTILO Y FORMATO (campo respuesta)\n- Español profesional, claro y directo, con tono técnico.\n- Usá el masculino genérico gramatical. No uses lenguaje inclusivo (x, @, e, \"todos/as\", \"les\").\n- Formato para un repuesto individual (cada dato en su propia línea):\n  Código SAP | Descripción\n  Stock: actual / mínimo [unidad] → estado\n  Ubicación: ...\n  Acción sugerida: ...\n\n## SALIDA\nDevolvé una respuesta estructurada para que la consuma el Workflow Manager.\nstatus puede ser:\n- success: encontraste el o los repuestos y respondiste con datos de la planilla.\n- not_found: ningún registro coincide razonablemente (pedí código SAP o descripción alternativa en respuesta).\n- out_of_scope: la solicitud no es de stock.\n- error: la herramienta falló o no devolvió información utilizable.\nEn codigos_encontrados incluí solo códigos SAP que existan en los datos devueltos por la herramienta.",
+          "maxIterations": 6,
+          "returnIntermediateSteps": true
+        }
+      },
+      "id": "f48b07e2-af32-44d3-bbce-e4a8d57e0d73",
+      "name": "Stock Lookup Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        352,
+        240
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "8337bfcb-165d-4c74-bc25-4048471868b1",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        240,
+        464
+      ],
+      "credentials": {
+        "groqApi": {
+          "id": "9r71mopqe1uXANwn",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Consulta de solo lectura del maestro de stock del Pañol de Repuestos de la planta. Devuelve la lista completa de repuestos con estas columnas: Codigo_SAP, Descripcion, Equipo_Asociado, Ubicacion, Stock_Actual, Stock_Minimo, Unidad, Criticidad (A = crítico, puede detener una línea; B = importante; C = consumible) y Ultimo_Movimiento.\n\nUSALA cuando el usuario:\n- Pregunte si hay stock, cuántas unidades quedan o dónde está ubicado un repuesto.\n- Mencione un código SAP, una descripción técnica (rodamiento, sello mecánico, correa, motor, contactor, filtro, etc.) o el equipo/máquina donde se usa (Dispersora, Envasadora, Tanque, Etiquetadora).\n- Necesite saber si un material está bajo mínimo, sin stock o cuál es su criticidad.\n- Describa el repuesto de forma coloquial o incompleta: en ese caso usá esta herramienta para identificar las coincidencias por Descripcion y Equipo_Asociado.\n\nNO la uses para:\n- Saludos, preguntas generales o consultas ajenas al pañol.\n- Pedidos de retiro, reserva, baja, precios o plazos: esos casos se escalan al Responsable de Pañol sin consultar la planilla.\n\nEsta herramienta no modifica datos. Si la respuesta llega vacía o con error, informalo al usuario; no reintentes más de una vez.",
+        "documentId": {
+          "__rl": true,
+          "value": "1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0",
+          "mode": "list",
+          "cachedResultName": "Stock_Panol_demo",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 805008057,
+          "mode": "list",
+          "cachedResultName": "Stock",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ccvHXbhwiqeNvys1kelSw2KAA2jZpD1OKhqo3GY9JP0/edit#gid=805008057"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        464
+      ],
+      "id": "13d156e2-8e75-4f0f-875c-a35aec7525a6",
+      "name": "Consultar_Stock_Panol",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "w1TWEnaxv7fUP1az",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"status\": \"success\",\n  \"respuesta\": \"604187 | Goma muelle N°53\\nStock: 3 / 4 UN → BAJO MÍNIMO\\nUbicación: Est. A-01-04\\nAcción sugerida: gestionar reposición con Compras\",\n  \"codigos_encontrados\": [\n    \"604187\"\n  ],\n  \"alerta_criticidad_A\": false\n}"
+      },
+      "id": "c1811025-8767-42c9-839b-4a4828c5916e",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        640,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2b211820-e2af-405e-9905-d0cc7c67e9bd",
+              "name": "status",
+              "value": "={{ $json.output.status }}",
+              "type": "string"
+            },
+            {
+              "id": "43574fca-2dae-4de7-94d9-4e4eae7ed9f1",
+              "name": "worker",
+              "value": "stock_lookup",
+              "type": "string"
+            },
+            {
+              "id": "e5a15fae-581f-4f2a-84ba-e6ab2feceb36",
+              "name": "params",
+              "value": "={{ $('When Executed by Another Workflow').first().json }}",
+              "type": "object"
+            },
+            {
+              "id": "2c6f6c66-89af-4891-8985-638dca28ab42",
+              "name": "data.respuesta",
+              "value": "={{ $json.output.respuesta }}",
+              "type": "string"
+            },
+            {
+              "id": "3d7ef1c6-cca8-494c-a23a-0f6067bf034b",
+              "name": "data.codigos_encontrados",
+              "value": "={{ $json.output.codigos_encontrados }}",
+              "type": "array"
+            },
+            {
+              "id": "85fa6127-12e3-4020-b879-22f03c318909",
+              "name": "data.alerta_criticidad_A",
+              "value": "={{ $json.output.alerta_criticidad_A }}",
+              "type": "boolean"
+            },
+            {
+              "id": "20d0020c-3205-427f-bd70-e9c5e3734d1b",
+              "name": "data.herramientas_usadas",
+              "value": "={{ ($json.intermediateSteps || []).length }}",
+              "type": "number"
+            },
+            {
+              "id": "5e4b5245-e057-4166-93b6-1c11d54de122",
+              "name": "error_message",
+              "value": "={{ $json.output.status === 'error' ? 'La herramienta de stock no devolvió datos utilizables' : '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "920c7d9a-a406-44f7-bb9a-997d2bfe5197",
+      "name": "Contrato de Salida OK",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "30f2f384-0cad-4968-a896-595557945aba",
+              "name": "status",
+              "value": "error",
+              "type": "string"
+            },
+            {
+              "id": "d1617135-7d86-4dcb-a574-57420715ddbe",
+              "name": "worker",
+              "value": "stock_lookup",
+              "type": "string"
+            },
+            {
+              "id": "d55202ff-a1fd-4d0a-bbc4-1b294a974ae1",
+              "name": "params",
+              "value": "={{ $('When Executed by Another Workflow').first().json }}",
+              "type": "object"
+            },
+            {
+              "id": "bc212ca0-3640-48a5-9cbb-d4f14328711f",
+              "name": "data.respuesta",
+              "value": "No pude consultar la planilla de stock en este momento.",
+              "type": "string"
+            },
+            {
+              "id": "1b09c566-d85d-4ce1-a82a-41c0a4714f46",
+              "name": "data.codigos_encontrados",
+              "value": "={{ [] }}",
+              "type": "array"
+            },
+            {
+              "id": "56a78d17-7c10-4dd6-b303-32cffc6994e5",
+              "name": "data.alerta_criticidad_A",
+              "value": "=false",
+              "type": "boolean"
+            },
+            {
+              "id": "3c781b8c-1234-4ebb-900d-8562fb984929",
+              "name": "data.herramientas_usadas",
+              "value": "=0",
+              "type": "number"
+            },
+            {
+              "id": "927d893b-5318-4704-a3d2-8ce2284a7c7b",
+              "name": "error_message",
+              "value": "={{ $json.error?.message ?? $json.error ?? 'Error no identificado en el Worker de stock' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0cec39c5-222f-40f2-b470-9f8da13587a7",
+      "name": "Contrato de Salida Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Worker 1 · Stock Lookup\nEntrada: contrato JSON (jsonExample)\nAgente del M1 encapsulado · tool Sheets solo lectura · Max Iter 6\nSalida: `{status, worker, params, data, error_message}` en éxito y en error\nSettings: Timeout 60 s",
+        "height": 80,
+        "width": 920,
+        "color": 7
+      },
+      "id": "3cf6b4e6-2946-46ab-bd1d-5932f461a521",
+      "name": "Nota 7db2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Stock Lookup Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stock Lookup Agent": {
+      "main": [
+        [
+          {
+            "node": "Contrato de Salida OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Contrato de Salida Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Stock Lookup Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar_Stock_Panol": {
+      "ai_tool": [
+        [
+          {
+            "node": "Stock Lookup Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Stock Lookup Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 60
+  },
+  "versionId": "5227f197-b6ac-4102-9d73-7e2a6f8046b8",
+  "meta": {
+    "instanceId": "8c868f64723573c0285061e4b1f6484d9ffdcd2ec3df87ce9e58e23b2c4825fc"
+  },
+  "nodeGroups": [],
+  "id": "UGsHUwE5jml8J79m",
+  "tags": []
+}
