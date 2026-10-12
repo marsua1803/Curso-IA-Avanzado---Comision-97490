@@ -15,7 +15,7 @@ El agente del M4 sabía **cuánto hay y dónde está** un repuesto. Ahora tambi�
 | Documento indexado | MP-PAN-001 Rev. 03 · 13 secciones · 9 tablas |
 | Fragmentos | 20 (uno por sección o subsección) |
 | Recuperación | Top-K 3 · Minimum Score 0,66 · zona gris 0,60 |
-| Exactitud (5 preguntas ciegas) | 60 % en la batería inicial → **100 % en la regresión final** |
+| Precisión (5 preguntas ciegas) | **60 % (3/5)** en la batería ciega · 5/5 en la regresión post-corrección (no es una medida de generalización) |
 | Alucinaciones en la regresión final | 0 |
 
 ## 2. Arquitectura
@@ -71,7 +71,7 @@ La **cita** `[Manual: … · Rev. 03 · Secc. X]` la arma el Worker desde los me
 
 ## 6. Validación
 
-| Iteración | Cambio | Exactitud |
+| Iteración | Cambio | Precisión |
 |---|---|---|
 | 0 | Batería ciega inicial | 3/5 |
 | 1 | Fragmentos por sección, cita determinista, jerga a cifras | 4/4 re-testeadas |
