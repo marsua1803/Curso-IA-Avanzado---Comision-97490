@@ -1,0 +1,264 @@
+{
+  "name": "Worker Procedimientos Panol – M5",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Worker Procedimientos Pañol · M5\nHerramienta RAG del Asistente de Pañol.\n\n**Parametros RAG** concentra las palancas de recuperación:\n- **top_k**: fragmentos que se recuperan (costo de contexto)\n- **min_score**: similitud mínima para pasar al agente (precisión)\n\nSi ningún fragmento supera el umbral → `status: no_match` → el agente responde **\"No sé\"**.\n\n⚠ Embeddings: mismo modelo que la ingesta (gemini-embedding-001). Cambiar de modelo obliga a reindexar.",
+        "height": 340,
+        "width": 560,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        32,
+        80
+      ],
+      "id": "406a4708-57e3-443f-a28d-83a51b25d13e",
+      "name": "Nota Worker"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "consulta"
+            },
+            {
+              "name": "session_id"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        48,
+        464
+      ],
+      "id": "5b00cd95-4fb9-4d11-8143-a850225b840c",
+      "name": "Recibir consulta"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        48,
+        672
+      ],
+      "id": "fb5283fc-468f-4f8e-8261-86032f879bdf",
+      "name": "Prueba manual"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "901f063f-6a40-4f41-8561-879177fe5071",
+              "name": "consulta",
+              "value": "¿qué tengo que hacer con el torquímetro que se rompió?",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        672
+      ],
+      "id": "8a60259f-65f3-4c3b-a0ca-bb1180075d86",
+      "name": "Consulta de prueba"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "985f83ce-d1f6-486f-9b1d-eb6309ee2aa2",
+              "name": "consulta",
+              "value": "={{ $json.consulta }}",
+              "type": "string"
+            },
+            {
+              "id": "d06d58db-534f-42f7-8126-c20a6ac7d487",
+              "name": "top_k",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "id": "38c3ea2a-aa8b-435a-9d75-bb9aca9e4d9b",
+              "name": "min_score",
+              "value": 0.66,
+              "type": "number"
+            },
+            {
+              "id": "27e43ee6-cad2-4461-b4a7-9f99cdf41355",
+              "name": "score_es_distancia",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "aaab7584-2894-44a5-8808-34cf7519b8f0",
+              "name": "min_score_gris",
+              "value": 0.6,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        528,
+        464
+      ],
+      "id": "dc98520e-d774-4861-bd89-ecd3745b7c84",
+      "name": "Parametros RAG"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "tableName": "panol_kb",
+        "prompt": "={{ $json.consulta }}",
+        "topK": "={{ $json.top_k }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.3,
+      "position": [
+        768,
+        464
+      ],
+      "id": "f4f93011-4dd9-453a-8b33-05ecbf1fcc48",
+      "name": "Buscar en panol_kb",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "CKn2al5RuGPbh5s1",
+          "name": "Neon – Asistente Pañol"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        784,
+        688
+      ],
+      "id": "2a0af719-987f-493d-8552-c41ac6a82563",
+      "name": "Embeddings Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "yEDLHEBDAEbhHCva",
+          "name": "Gemini – Embeddings Pañol"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtro de relevancia (Minimum Score escalonado) + contrato de retorno del Worker · v3\n// v2: devuelve sección y cita determinista.\n// v3: zona gris [min_score_gris, min_score): pasa SOLO el fragmento #1 marcado como confianza media;\n//     la regla \"No sé\" del prompt verifica que el dato esté explícito.\nconst p = $('Parametros RAG').first().json;\nconst filas = $input.all().map(i => i.json).filter(r => r && r.document);\n\nconst frags = filas.map(r => {\n  const bruto = Number(r.score);\n  // PGVector (cosine) devuelve DISTANCIA: 0 = idéntico. Se convierte a similitud 0..1.\n  const similitud = p.score_es_distancia ? 1 - bruto : bruto;\n  const m = r.document.metadata || {};\n  const fuente = m.file_name || 'sin_nombre';\n  const revision = m.revision || '';\n  const seccion = m.seccion || '';\n  return {\n    fuente, revision, seccion,\n    titulo: m.titulo || '',\n    cita: `[Manual: ${fuente} · Rev. ${revision} · Secc. ${seccion}]`,\n    similitud: Math.round(similitud * 1000) / 1000,\n    score_bruto: Math.round(bruto * 1000) / 1000,\n    texto: r.document.pageContent\n  };\n}).sort((a, b) => b.similitud - a.similitud);\n\nconst gris = Number(p.min_score_gris ?? p.min_score);\nlet aprobados = frags.filter(f => f.similitud >= p.min_score).map(f => ({ ...f, confianza: 'alta' }));\nlet status = aprobados.length ? 'ok' : 'no_match';\nif (!aprobados.length && frags[0] && frags[0].similitud >= gris) {\n  aprobados = [{ ...frags[0], confianza: 'media' }];\n  status = 'ok_confianza_media';\n}\n\nreturn [{ json: {\n  status,\n  worker: 'procedimientos_panol',\n  params: { consulta: p.consulta, top_k: p.top_k, min_score: p.min_score, min_score_gris: gris },\n  data: {\n    fragmentos: aprobados.map(({ score_bruto, ...f }) => f),\n    recuperados: frags.length,\n    descartados_por_umbral: frags.length - aprobados.length,\n    detalle_scores: frags.map(f => ({ seccion: f.seccion, similitud: f.similitud, titulo: f.titulo }))\n  },\n  error_message: status === 'no_match' ? 'Ningún fragmento supera el umbral mínimo: responder \"No sé\".'\n    : status === 'ok_confianza_media' ? 'Confianza media: verificá que el fragmento contenga la regla que responde la pregunta. Si la contiene, respondé normalmente con su cita.' : null\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        464
+      ],
+      "id": "763917f9-e783-4a8a-9625-3a5ddb8185d1",
+      "name": "Filtro Minimum Score + contrato"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Recibir consulta": {
+      "main": [
+        [
+          {
+            "node": "Parametros RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prueba manual": {
+      "main": [
+        [
+          {
+            "node": "Consulta de prueba",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consulta de prueba": {
+      "main": [
+        [
+          {
+            "node": "Parametros RAG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parametros RAG": {
+      "main": [
+        [
+          {
+            "node": "Buscar en panol_kb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar en panol_kb": {
+      "main": [
+        [
+          {
+            "node": "Filtro Minimum Score + contrato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Buscar en panol_kb",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "60e324d8-6de6-418f-9e3d-9b1c7f3089c5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c868f64723573c0285061e4b1f6484d9ffdcd2ec3df87ce9e58e23b2c4825fc"
+  },
+  "nodeGroups": [],
+  "id": "dfTtR97oTkFsQHFd",
+  "tags": []
+}

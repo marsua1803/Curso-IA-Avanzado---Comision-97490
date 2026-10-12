@@ -8,7 +8,7 @@ Entregas del proyecto integrador **Asistente de Pañol**: un agente en n8n que e
 | M2 | Multi-agente Manager-Worker (orquestador + 2 sub-workflows + log de trazabilidad) | [M2](./M2) |
 | M3 | Memoria híbrida por Session_ID (Airtable largo plazo + Neon corto plazo + summarization JSON) | [M3](./M3) |
 | M4 | Integraciones avanzadas: canal Email con Gmail + HubSpot + Slack y guardrails (anti auto-reply, Look up anti-409, Create Draft HITL, validación anti-400) | [M4](./M4) |
-| M5 | RAG / base documental | — |
+| M5 | Cerebro documental (RAG): Manual de Procedimientos parseado con LlamaCloud, PGVector en Neon, Worker con Top-K + Minimum Score escalonado, cita determinista y regla "No sé" en 4 capas | [M5](./M5) |
 | M6 | Voz | — |
 
 Autor: Mario Suarez

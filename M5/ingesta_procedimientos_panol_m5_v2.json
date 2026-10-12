@@ -1,0 +1,312 @@
+{
+  "name": "Ingesta Procedimientos Panol – M5 v2",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Ingesta Procedimientos Pañol · M5 · v2\n**Un fragmento por sección/subsección** (corte por títulos ## y ###), con encabezado contextual y la **sección como metadato**.\n\n**Gobernanza (overwrite):** borra los fragmentos del mismo código de documento antes de insertar.\n\n**v2 corrige:** fusión de secciones en un mismo chunk (hallazgo P2 de la batería ciega).",
+        "height": 280,
+        "width": 560,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        544,
+        96
+      ],
+      "id": "2d2d9de7-19ee-4bdd-ada7-91919737eeb0",
+      "name": "Nota Ingesta v2"
+    },
+    {
+      "parameters": {
+        "formTitle": "Base de conocimiento del Pañol",
+        "formDescription": "Subí el Markdown exportado de LlamaParse (curado). Si el código de documento ya existe, la versión anterior se reemplaza.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Archivo",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".md,.txt",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Nombre del documento",
+              "placeholder": "Manual_Procedimientos_Panol_MP-PAN-001",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Codigo documento",
+              "placeholder": "MP-PAN-001",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Revision",
+              "placeholder": "03",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        64,
+        448
+      ],
+      "id": "0b14656d-1544-4e88-a103-21247dddd811",
+      "name": "Cargar documento",
+      "webhookId": "4bd8230c-b9d3-4df3-b6c7-2201666fc66f"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM panol_kb WHERE metadata->>'doc_code' = $1;",
+        "options": {
+          "queryReplacement": "={{ $json['Codigo documento'] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        304,
+        320
+      ],
+      "id": "2544d433-3a19-4a89-a22e-dd8d73e29378",
+      "name": "Borrar version anterior",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "CKn2al5RuGPbh5s1",
+          "name": "Neon – Asistente Pañol"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch",
+        "useDataOfInput": 2
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        544,
+        448
+      ],
+      "id": "1b62d0cf-0956-47b0-b20b-87b68e644148",
+      "name": "Esperar borrado"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Divide el Markdown en un fragmento por sección (##) y subsección (###),\n// agregando un encabezado contextual (breadcrumb) y el número de sección como metadato.\nfunction dividir(md, docLabel) {\n  const lineas = md.replace(/\\r/g, '').split('\\n');\n  const bloques = []; let actual = null; let padre = '';\n  const cerrar = () => { if (actual) bloques.push(actual); };\n  for (const l of lineas) {\n    const h2 = l.match(/^##\\s+(\\d+)\\.\\s*(.+)$/);\n    const h3 = l.match(/^###\\s+(\\d+\\.\\d+)\\s+(.+)$/);\n    if (h2) { cerrar(); padre = `${h2[1]}. ${h2[2].trim()}`; actual = { seccion: h2[1], titulo: padre, cuerpo: [] }; continue; }\n    if (h3) { cerrar(); actual = { seccion: h3[1], titulo: `${padre} › ${h3[1]} ${h3[2].trim()}`, cuerpo: [] }; continue; }\n    if (!actual) actual = { seccion: '0', titulo: 'Encabezado y alcance del documento', cuerpo: [] };\n    actual.cuerpo.push(l);\n  }\n  cerrar();\n  return bloques\n    .map(b => ({ ...b, cuerpo: b.cuerpo.join('\\n').replace(/^#\\s+.*$/m, '').trim() }))\n    .filter(b => b.cuerpo.length > 0)\n    .map(b => ({ seccion: b.seccion, titulo: b.titulo,\n                 texto: `${docLabel} · Sección ${b.titulo}\\n\\n${b.cuerpo}` }));\n}\n\n\n// --- Entrada: archivo .md del formulario (después de borrar la versión anterior)\nconst item = $input.first();\nconst key = Object.keys(item.binary || {})[0];\nif (!key) throw new Error('No se recibió el archivo Markdown.');\nconst md = (await this.helpers.getBinaryDataBuffer(0, key)).toString('utf8');\nconst f = $('Cargar documento').first().json;\nconst etiqueta = `${f['Nombre del documento']} (${f['Codigo documento']})`;\n\nreturn dividir(md, etiqueta).map(b => ({ json: {\n  texto: b.texto,\n  seccion: b.seccion,\n  titulo: b.titulo\n}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        752,
+        448
+      ],
+      "id": "29130d9c-bc63-4c1b-afc2-d30ce17b229f",
+      "name": "Dividir por seccion"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "panol_kb",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.3,
+      "position": [
+        992,
+        448
+      ],
+      "id": "fad74fb2-13a8-44e0-b65b-a5db5580b65e",
+      "name": "Insertar en panol_kb",
+      "credentials": {
+        "postgres": {
+          "id": "CKn2al5RuGPbh5s1",
+          "name": "Neon – Asistente Pañol"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        912,
+        656
+      ],
+      "id": "3890475c-b6d4-4697-ac86-414e931da4c2",
+      "name": "Embeddings Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "yEDLHEBDAEbhHCva",
+          "name": "Gemini – Embeddings Pañol"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.texto }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "file_name",
+                "value": "={{ $('Cargar documento').first().json['Nombre del documento'] }}"
+              },
+              {
+                "name": "doc_code",
+                "value": "={{ $('Cargar documento').first().json['Codigo documento'] }}"
+              },
+              {
+                "name": "revision",
+                "value": "={{ $('Cargar documento').first().json['Revision'] }}"
+              },
+              {
+                "name": "seccion",
+                "value": "={{ $json.seccion }}"
+              },
+              {
+                "name": "titulo",
+                "value": "={{ $json.titulo }}"
+              },
+              {
+                "name": "loaded_at",
+                "value": "={{ $now.toFormat('yyyy-MM-dd') }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        656
+      ],
+      "id": "17405f6c-418b-4cba-9158-5706359b2159",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "chunkSize": 2000,
+        "options": {
+          "splitCode": "markdown"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        1200,
+        864
+      ],
+      "id": "fafc7282-a0b5-4b43-bb2d-fc4e50aa57f1",
+      "name": "Splitter (resguardo 2000)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cargar documento": {
+      "main": [
+        [
+          {
+            "node": "Borrar version anterior",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Esperar borrado",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Borrar version anterior": {
+      "main": [
+        [
+          {
+            "node": "Esperar borrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Esperar borrado": {
+      "main": [
+        [
+          {
+            "node": "Dividir por seccion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dividir por seccion": {
+      "main": [
+        [
+          {
+            "node": "Insertar en panol_kb",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Insertar en panol_kb",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Insertar en panol_kb",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Splitter (resguardo 2000)": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "36cc16ea-43c2-48e1-8b08-0d609a5150e3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c868f64723573c0285061e4b1f6484d9ffdcd2ec3df87ce9e58e23b2c4825fc"
+  },
+  "nodeGroups": [],
+  "id": "cMgHWYRDVosyOTpU",
+  "tags": []
+}
